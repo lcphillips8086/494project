@@ -1,0 +1,504 @@
+
+
+
+
+Network Working Group                                        L. Phillips
+Internet-Draft                                 Portland State University
+Intended status: Experimental                          December 06, 2019
+Expires: June 8, 2020
+
+
+                   CS494 Internet Relay Chat Project
+                        draft-phillips-494irc-00
+
+Abstract
+
+   This document describes a simple client/server internet chat protocol
+   inspired by the Internet Relay Chat (IRC) protocol [RFC1459].
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  Note that other groups may also distribute
+   working documents as Internet-Drafts.  The list of current Internet-
+   Drafts is at https://datatracker.ietf.org/drafts/current/.
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   This Internet-Draft will expire on June 8, 2020.
+
+Copyright Notice
+
+   Copyright (c) 2019 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+
+
+
+Phillips                  Expires June 8, 2020                  [Page 1]
+
+Internet-Draft                  CS494IRC                   December 2019
+
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
+     1.1.  Terminology . . . . . . . . . . . . . . . . . . . . . . .   2
+   2.  Basic Protocol Operation  . . . . . . . . . . . . . . . . . .   3
+     2.1.  Operation Codes . . . . . . . . . . . . . . . . . . . . .   3
+   3.  Messages  . . . . . . . . . . . . . . . . . . . . . . . . . .   4
+     3.1.  General Format  . . . . . . . . . . . . . . . . . . . . .   4
+   4.  Message Details . . . . . . . . . . . . . . . . . . . . . . .   4
+     4.1.  COMMAND_MESSAGE . . . . . . . . . . . . . . . . . . . . .   4
+     4.2.  COMMAND_NICK  . . . . . . . . . . . . . . . . . . . . . .   5
+     4.3.  COMMAND_JOIN  . . . . . . . . . . . . . . . . . . . . . .   5
+     4.4.  COMMAND_LEAVE . . . . . . . . . . . . . . . . . . . . . .   5
+     4.5.  COMMAND_CREATE  . . . . . . . . . . . . . . . . . . . . .   6
+     4.6.  COMMAND_LIST  . . . . . . . . . . . . . . . . . . . . . .   6
+     4.7.  RESPONSE_MESSAGE  . . . . . . . . . . . . . . . . . . . .   6
+     4.8.  RESPONSE_NICK . . . . . . . . . . . . . . . . . . . . . .   7
+     4.9.  RESPONSE_ROOM . . . . . . . . . . . . . . . . . . . . . .   7
+     4.10. RESPONSE_LEAVE  . . . . . . . . . . . . . . . . . . . . .   8
+   5.  Identifiers . . . . . . . . . . . . . . . . . . . . . . . . .   8
+   6.  Security Considerations . . . . . . . . . . . . . . . . . . .   9
+   7.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .   9
+   8.  References  . . . . . . . . . . . . . . . . . . . . . . . . .   9
+     8.1.  Normative References  . . . . . . . . . . . . . . . . . .   9
+     8.2.  Informative References  . . . . . . . . . . . . . . . . .   9
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .   9
+
+1.  Introduction
+
+   This memo documents a simple experimental client/server internet chat
+   protocol for the Internetworking Protocols class at Portland State
+   University.  It is inspired by Internet Relay Chat (IRC) [RFC1459]
+   and follows a similar scheme for organizing communication between
+   users into channels that define a common stream of messages relayed
+   by a server to all users currently connected to that channel.
+
+   This protocol supports numerous users connected to a single server,
+   and allows each user to create channels, join multiple channels, send
+   messages to channels, or privately message other users.
+
+   In other words, it provides all the basic functions required by this
+   assignment.
+
+1.1.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+
+
+
+Phillips                  Expires June 8, 2020                  [Page 2]
+
+Internet-Draft                  CS494IRC                   December 2019
+
+
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+2.  Basic Protocol Operation
+
+   All communication between the client and server in this protocol
+   takes place over a single persistent TCP connection.  The server is
+   RECOMMENDED to listen for incoming connections on port 2019, but MAY
+   be configured to listen on other ports.
+
+   Either party MAY close the connection at any time, and the server
+   MUST continue operating normally when a client ceases to send or
+   recieve messages.
+
+2.1.  Operation Codes
+
+   Every actions a client or server can take are identified by operation
+   codes.  There are ten operations defined by the protocol.  Six of the
+   operations are commands sent by the client to the server:
+
+   o  COMMAND_MESSAGE = 0x0001
+
+   o  COMMAND_NICK = 0x0002
+
+   o  COMMAND_JOIN = 0x0003
+
+   o  COMMAND_LEAVE = 0x0004
+
+   o  COMMAND_CREATE = 0x0005
+
+   o  COMMAND_LIST = 0x0006
+
+   The other four operations are responses sent from the server to the
+   client:
+
+   o  RESPONSE_MESSAGE = 0x0007
+
+   o  RESPONSE_NICK = 0x0008
+
+   o  RESPONSE_ROOM = 0x0009
+
+   o  RESPONSE_LEAVE = 0x000
+
+   The meaning of each operation is defined in Section 4.
+
+
+
+
+
+
+
+Phillips                  Expires June 8, 2020                  [Page 3]
+
+Internet-Draft                  CS494IRC                   December 2019
+
+
+3.  Messages
+
+3.1.  General Format
+
+   All messages defined by this protocol use length-prefixed framing.
+   Every message includes an operation code that identifies the type of
+   message.  The general message format is shown in Figure 1.
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |             Length            |            Operation          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                           Subject ID                          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                             data                              |
+       +...............................................................+
+
+                      Figure 1: General Packet Header
+
+   All fields in this protocol are in big-endian byte order.  The length
+   and operation fields are 16-bit unsigned integers.  The subject ID is
+   a 32-bit unsigned integer as described in Section 5.  The total
+   length of any packet, including the header, MUST be less than or
+   equal to 1024 bytes.  This effectively limits the maximum length of a
+   string to 1011 characters.
+
+4.  Message Details
+
+4.1.  COMMAND_MESSAGE
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |             Length            |            Operation          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                        Destination_Room                       |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                         Message_Text                          |
+       +...............................................................+
+
+                      Figure 2: Mesage Command Format
+
+   When the operation is COMMAND_MESSAGE, the message contains a string
+   (Message_Text) sent from the client to be relayed to all members of
+   the specified room (Destination_Room).
+
+
+
+
+
+Phillips                  Expires June 8, 2020                  [Page 4]
+
+Internet-Draft                  CS494IRC                   December 2019
+
+
+4.2.  COMMAND_NICK
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |             Length            |            Operation          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                            unused                             |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                           Nickname                            |
+       +...............................................................+
+
+                     Figure 3: Nickname Command Format
+
+   When the operation is COMMAND_NICK, the message contains a string
+   identifying the "nickname" of the client.  The Subject ID field of
+   the message MUST be ignored by the server.
+
+4.3.  COMMAND_JOIN
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |             Length            |            Operation          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                             Room                              |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                       Figure 4: Join Command Format
+
+   When the operation is COMMAND_JOIN, the message simply contains the
+   identifier of the room that the client wishes to join.
+
+4.4.  COMMAND_LEAVE
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |             Length            |            Operation          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                             Room                              |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                      Figure 5: Leave Command Format
+
+   When the operation is COMMAND_LEAVE, the message simply contains the
+   identifier of the room that the client wishes to leave.
+
+
+
+
+Phillips                  Expires June 8, 2020                  [Page 5]
+
+Internet-Draft                  CS494IRC                   December 2019
+
+
+4.5.  COMMAND_CREATE
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |             Length            |            Operation          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                            unused                             |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                          Room_Name                            |
+       +...............................................................+
+
+                   Figure 6: Room Create Command Format
+
+   The client sends a message with the operation set to COMMAND_CREATE
+   to request the creation of a room named with the given string
+   (Room_Name).  The Subject ID field of the message MUST be ignored by
+   the server.
+
+4.6.  COMMAND_LIST
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |             Length            |            Operation          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                             Room                              |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                       Figure 7: List Command Format
+
+   The client sends a message with the operation set to COMMAND_LIST to
+   request that the server replies with a series of ordinary messages
+   listing the names of all users subscribed to the given Room as
+   strings.  The server MUST reply to this message with the requested
+   information.
+
+4.7.  RESPONSE_MESSAGE
+
+
+
+
+
+
+
+
+
+
+
+
+
+Phillips                  Expires June 8, 2020                  [Page 6]
+
+Internet-Draft                  CS494IRC                   December 2019
+
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |             Length            |            Operation          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                        Destination_Room                       |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                         Source_Client                         |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                         Message_Text                          |
+       +...............................................................+
+
+                     Figure 8: Mesage Response Format
+
+   The server sends a RESPONSE_MESSAGE to relay a COMMAND_MESSAGE to all
+   clients in Destination_Room.  The message contains all the same
+   information as COMMAND_MESSAGE, with the addition of a Source_Client
+   field that identifies which client sent the message.
+
+4.8.  RESPONSE_NICK
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |             Length            |            Operation          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                         Source_Client                         |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                           Nickname                            |
+       +...............................................................+
+
+                    Figure 9: Nickname Response Format
+
+   The server sends RESPONSE_NICK messages to relay the "nickname" of a
+   client to all other clients.  It is identical to the COMMAND_NICK
+   message with the addition of Source_Client to identify the client
+   being described.
+
+4.9.  RESPONSE_ROOM
+
+
+
+
+
+
+
+
+
+
+
+
+Phillips                  Expires June 8, 2020                  [Page 7]
+
+Internet-Draft                  CS494IRC                   December 2019
+
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |             Length            |            Operation          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                              Room                             |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                           Room_Name                           |
+       +...............................................................+
+
+                      Figure 10: Room Response Format
+
+   Similar to the RESPONSE_NICK message, the RESPONSE_ROOM message
+   informs clients of the human-readable name (Room_Name) of a given
+   Room.
+
+4.10.  RESPONSE_LEAVE
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |             Length            |            Operation          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                         Source_Client                         |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                 Figure 11: Disconnection Response Format
+
+   When the operation is RESPONSE_LEAVE, the message simply contains the
+   identifier of a client that disconnected.  This is sent by the server
+   to inform clients that the identifier is no longer valid.
+
+5.  Identifiers
+
+   Clients and rooms are identified in the protocol by unsigned 32-bit
+   integers.  Both clients and rooms share a single global identifier
+   namespace (i.e. a room MUST NOT have the same identifier as any
+   client, and a client MUST NOT be assigned the same identifier as any
+   room).  Identifier zero is reserved for the server itself to send
+   messages to clients.  New identifiers MAY be assigned each time a
+   particular client reconnects, or they MAY be assigned persistently
+   (e.g. associated with IP address or Nickname), as long as the
+   identifiers present on one server at any given time are unique and do
+   not change in the lifetime of a single connection.  The server is
+   responsible for assigning identifiers.
+
+
+
+
+
+
+Phillips                  Expires June 8, 2020                  [Page 8]
+
+Internet-Draft                  CS494IRC                   December 2019
+
+
+6.  Security Considerations
+
+   This experimental protocol makes no attempt to provide for security
+   or privacy.  Messages are sent unencrypted and with only superficial
+   authentication.  This level of security is suitable for use on air-
+   gapped networks accessible only by trustworthy users.
+
+7.  IANA Considerations
+
+   None
+
+8.  References
+
+8.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+8.2.  Informative References
+
+   [RFC1459]  Oikarinen, J. and D. Reed, "Internet Relay Chat Protocol",
+              RFC 1459, DOI 10.17487/RFC1459, May 1993,
+              <https://www.rfc-editor.org/info/rfc1459>.
+
+Author's Address
+
+   Luke Phillips
+   Portland State University
+
+   Email: lcp2@pdx.edu
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Phillips                  Expires June 8, 2020                  [Page 9]
